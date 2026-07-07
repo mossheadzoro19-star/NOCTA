@@ -1,36 +1,36 @@
 const mongoose = require('mongoose');
+const logger = require('./logger');
 
 const connectDB = async () => {
   const uri = process.env.MONGODB_URI;
-  
+
   if (!uri) {
     throw new Error('MONGODB_URI environment variable is not set');
   }
 
   try {
     const conn = await mongoose.connect(uri, {
-      serverSelectionTimeoutMS: 5000, // Fail fast if MongoDB isn't reachable
+      serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
     });
-    console.log(`[DB] MongoDB connected: ${conn.connection.host}`);
+    logger.info({ host: conn.connection.host }, 'MongoDB connected');
 
-    // Handle connection events after initial connect
     mongoose.connection.on('error', (err) => {
-      console.error('[DB] MongoDB connection error:', err.message);
+      logger.error({ err: err.message }, 'MongoDB connection error');
     });
 
     mongoose.connection.on('disconnected', () => {
-      console.warn('[DB] MongoDB disconnected. Attempting to reconnect...');
+      logger.warn('MongoDB disconnected. Attempting to reconnect...');
     });
 
     mongoose.connection.on('reconnected', () => {
-      console.log('[DB] MongoDB reconnected');
+      logger.info('MongoDB reconnected');
     });
 
     return conn;
   } catch (error) {
-    console.error(`[DB] Connection error: ${error.message}`);
-    throw error; // Let the server decide how to handle this
+    logger.error({ err: error.message }, 'MongoDB connection failed');
+    throw error;
   }
 };
 

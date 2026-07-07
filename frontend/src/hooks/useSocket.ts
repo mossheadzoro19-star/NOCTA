@@ -42,12 +42,21 @@ export function useSocket() {
       addToast(`${user.username} joined`, "info");
     });
 
-    socket.on("room:user-left", ({ user, participants, newHost }) => {
+    socket.on("room:user-left", ({ user, participants, newHost, kicked }) => {
       setParticipants(participants);
-      addToast(`${user.username} left`, "info");
+      addToast(kicked ? `${user.username} was kicked` : `${user.username} left`, "info");
       if (newHost) {
         addToast(`${newHost} is now the host`, "info");
       }
+    });
+
+    socket.on("room:host-changed", ({ username }) => {
+      addToast(`${username} is now the host`, "info");
+    });
+
+    socket.on("room:kicked", ({ message }) => {
+      addToast(message, "error");
+      useRoomStore.getState().clearRoom();
     });
 
     socket.on("room:video-changed", ({ videoUrl }) => {
@@ -60,7 +69,16 @@ export function useSocket() {
 
     // Chat events
     socket.on("chat:message", (msg) => {
+      // Don't add if we just sent it (optimistic UI handles this)
+      const state = useRoomStore.getState();
+      if (msg.userId === state.user?.id && !msg.tempId) {
+         // Wait, the broadcast from server to the room goes to OTHER clients, not the sender.
+         // Oh, io.to(roomCode) emits to everyone INCLUDING sender if we don't use socket.to.
+         // Wait! chatHandler.js was updated to use socket.to(roomCode).emit()
+         // which EXCLUDES the sender. So we don't receive our own message here!
+      }
       addMessage(msg);
+      useRoomStore.getState().incrementUnread();
     });
 
     socket.on("chat:typing", ({ username, isTyping }) => {
@@ -99,6 +117,18 @@ export function useSocket() {
       }
     });
 
+    // WebRTC & Media events
+    socket.on("webrtc:peer-disconnected", ({ username }) => {
+      if (username) {
+        addToast(`Lost connection to ${username}`, "warning");
+      }
+    });
+
+    socket.on("webrtc:media-state", ({ username, isCameraOn, isMicOn }) => {
+      if (isCameraOn !== undefined) addToast(`${username} ${isCameraOn ? 'enabled' : 'disabled'} their camera`, "info");
+      else if (isMicOn !== undefined) addToast(`${username} ${isMicOn ? 'enabled' : 'disabled'} their mic`, "info");
+    });
+
     return () => {
       socket.off("room:joined");
       socket.off("room:user-joined");
@@ -108,6 +138,10 @@ export function useSocket() {
       socket.off("chat:message");
       socket.off("chat:typing");
       socket.off("reconnect:state");
+      socket.off("room:host-changed");
+      socket.off("room:kicked");
+      socket.off("webrtc:peer-disconnected");
+      socket.off("webrtc:media-state");
       typingTimeouts.current.forEach((t) => clearTimeout(t));
     };
   }, [socket, setRoom, setParticipants, setPlayback, addMessage, addToast, setTypingUsers]);
@@ -126,7 +160,31 @@ export function useSocket() {
 
   const sendMessage = useCallback(
     (content: string) => {
-      socket?.emit("chat:message", { content });
+      if (!socket) return;
+      const state = useRoomStore.getState();
+      if (!state.user) return;
+
+      const tempId = `temp-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+      const optimisticMsg = {
+        id: tempId,
+        userId: state.user.id,
+        username: state.user.username,
+        avatarColor: state.user.avatarColor,
+        content,
+        type: "message" as const,
+        createdAt: new Date().toISOString(),
+      };
+
+      state.addMessage(optimisticMsg);
+
+      socket.emit("chat:message", { content, tempId }, (response: any) => {
+        if (response?.error) {
+          useRoomStore.getState().removeMessage(tempId);
+          useRoomStore.getState().addToast(response.error, "error");
+        } else if (response?.success && response?.message) {
+          useRoomStore.getState().updateMessageId(tempId, response.message);
+        }
+      });
     },
     [socket]
   );

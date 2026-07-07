@@ -5,12 +5,14 @@ import { useParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useSocket } from "@/hooks/useSocket";
 import { useRoomStore } from "@/stores/roomStore";
+import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { apiRequest } from "@/lib/utils";
 import VideoPlayer from "@/components/room/VideoPlayer";
 import ChatSidebar from "@/components/room/ChatSidebar";
 import RoomControls from "@/components/room/RoomControls";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
+import Modal from "@/components/ui/Modal";
 import DiagnosticsOverlay from "@/components/room/DiagnosticsOverlay";
 
 export default function RoomPage() {
@@ -26,6 +28,7 @@ export default function RoomPage() {
   const recoverSession = useRoomStore((s) => s.recoverSession);
   const setAuthModalOpen = useRoomStore((s) => s.setAuthModalOpen);
   const { joinRoom, isConnected } = useSocket();
+  const { showHelp, setShowHelp } = useKeyboardShortcuts();
 
   const [joining, setJoining] = useState(true);
 
@@ -92,6 +95,23 @@ export default function RoomPage() {
         <ChatSidebar />
       </div>
       <RoomControls />
+
+      <Modal isOpen={showHelp} onClose={() => setShowHelp(false)}>
+        <div>
+          <h2 className="text-[22px] font-bold text-nocta-text mb-4">Keyboard Shortcuts</h2>
+          <div className="space-y-3">
+            <div className="flex justify-between text-[14px] text-nocta-text-muted"><span>Play / Pause</span><kbd className="font-mono bg-white/10 px-2 py-1 rounded">Space</kbd></div>
+            <div className="flex justify-between text-[14px] text-nocta-text-muted"><span>Seek Backward 10s</span><kbd className="font-mono bg-white/10 px-2 py-1 rounded">J</kbd></div>
+            <div className="flex justify-between text-[14px] text-nocta-text-muted"><span>Seek Forward 10s</span><kbd className="font-mono bg-white/10 px-2 py-1 rounded">L</kbd></div>
+            <div className="flex justify-between text-[14px] text-nocta-text-muted"><span>Toggle Fullscreen</span><kbd className="font-mono bg-white/10 px-2 py-1 rounded">F</kbd></div>
+            <div className="flex justify-between text-[14px] text-nocta-text-muted"><span>Toggle Mute</span><kbd className="font-mono bg-white/10 px-2 py-1 rounded">M</kbd></div>
+            <div className="flex justify-between text-[14px] text-nocta-text-muted"><span>Toggle Chat</span><kbd className="font-mono bg-white/10 px-2 py-1 rounded">C</kbd></div>
+            <div className="flex justify-between text-[14px] text-nocta-text-muted"><span>Exit Fullscreen / Close Chat</span><kbd className="font-mono bg-white/10 px-2 py-1 rounded">Esc</kbd></div>
+            <div className="flex justify-between text-[14px] text-nocta-text-muted"><span>Show Shortcuts</span><kbd className="font-mono bg-white/10 px-2 py-1 rounded">?</kbd></div>
+          </div>
+          <Button variant="primary" className="w-full mt-6" onClick={() => setShowHelp(false)}>Close</Button>
+        </div>
+      </Modal>
     </main>
   );
 }

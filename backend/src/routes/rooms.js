@@ -1,15 +1,16 @@
 const express = require('express');
 const { nanoid } = require('nanoid');
+const mongoose = require('mongoose');
 const Room = require('../models/Room');
 const Message = require('../models/Message');
 const { authMiddleware } = require('../middleware/auth');
 const roomState = require('../socket/roomState');
+const logger = require('../config/logger');
 
 const router = express.Router();
 
 /**
  * POST /api/rooms
- * Create a new room. Returns roomCode.
  */
 router.post('/', authMiddleware, async (req, res) => {
   try {
@@ -28,20 +29,21 @@ router.post('/', authMiddleware, async (req, res) => {
       maxParticipants: Math.min(Math.max(maxParticipants, 2), 6),
     });
 
+    logger.info({ roomCode, host: req.user.username }, 'Room created');
+
     res.status(201).json({
       roomCode: room.roomCode,
       name: room.name,
       maxParticipants: room.maxParticipants,
     });
   } catch (error) {
-    console.error('[Rooms] Create error:', error);
+    logger.error({ err: error.message }, 'Room create error');
     res.status(500).json({ error: 'Failed to create room' });
   }
 });
 
 /**
  * GET /api/rooms/:code
- * Get room info by code.
  */
 router.get('/:code', authMiddleware, async (req, res) => {
   try {
@@ -66,14 +68,13 @@ router.get('/:code', authMiddleware, async (req, res) => {
       createdAt: room.createdAt,
     });
   } catch (error) {
-    console.error('[Rooms] Get error:', error);
+    logger.error({ err: error.message }, 'Room get error');
     res.status(500).json({ error: 'Failed to get room' });
   }
 });
 
 /**
  * GET /api/rooms/:code/messages
- * Get recent messages for a room (paginated).
  */
 router.get('/:code/messages', authMiddleware, async (req, res) => {
   try {
@@ -95,9 +96,14 @@ router.get('/:code/messages', authMiddleware, async (req, res) => {
       .limit(limit)
       .lean();
 
-    res.json({ messages: messages.reverse() });
+    const normalizedMessages = messages.reverse().map((msg) => {
+      const { _id, __v, updatedAt, roomId, ...rest } = msg;
+      return { id: _id.toString(), ...rest };
+    });
+
+    res.json({ messages: normalizedMessages });
   } catch (error) {
-    console.error('[Rooms] Messages error:', error);
+    logger.error({ err: error.message }, 'Messages fetch error');
     res.status(500).json({ error: 'Failed to get messages' });
   }
 });

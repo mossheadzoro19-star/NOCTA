@@ -5,11 +5,11 @@ import { motion } from "framer-motion";
 import { useRoomStore } from "@/stores/roomStore";
 import { useSocketContext } from "@/context/SocketProvider";
 import dynamic from "next/dynamic";
-import { extractYouTubeId, detectVideoSource, validateCodec } from "@/lib/utils";
+import { extractYouTubeId, detectVideoSource } from "@/lib/utils";
 import { useSocket } from "@/hooks/useSocket";
 import Button from "@/components/ui/Button";
-
-const TorrentPlayer = dynamic(() => import("./TorrentPlayer"), { ssr: false });
+import { useWebTorrent } from "@/hooks/useWebTorrent";
+import LocalPlayer from "./LocalPlayer";
 
 declare global {
   interface Window {
@@ -24,6 +24,8 @@ export default function VideoPlayer() {
   const playback = useRoomStore((s) => s.playback);
   const isHost = useRoomStore((s) => s.isHost);
   const setPlayback = useRoomStore((s) => s.setPlayback);
+  
+  const { streamLocalFile } = useWebTorrent();
 
   const playerRef = useRef<any>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -249,30 +251,16 @@ export default function VideoPlayer() {
     }
   };
 
-  const [uploadProgress, setUploadProgress] = useState<number | null>(null);
-  const [validationError, setValidationError] = useState("");
-
   // Handle file selection and validation
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    setValidationError("");
-    setUploadProgress(1); // Indicate checking
-
-    const abortController = new AbortController();
-    try {
-      await validateCodec(file, abortController.signal);
-      setLocalFile(file);
-      updateVideoUrl("file://" + file.name);
-      setUploadProgress(null);
-    } catch (err: any) {
-      setValidationError(err.message);
-      setUploadProgress(null);
-    }
+    
+    streamLocalFile(file);
+    updateVideoUrl("local://" + file.name);
   };
 
-  const hasVideo = source.type !== "unknown" || localFile !== null;
+  const hasVideo = source.type !== "unknown" || p2p.status !== "idle";
   const videoUrl = p2p.magnetURI ? undefined : (playback.videoUrl.startsWith("/") ? `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}${playback.videoUrl}` : playback.videoUrl);
 
   return (
@@ -297,16 +285,8 @@ export default function VideoPlayer() {
           )}
 
           {/* Local file or WebTorrent */}
-          {(source.type === "file" || p2p.magnetURI) && (
-            <>
-              <video
-                ref={videoRef}
-                src={videoUrl}
-                controls={true}
-                className="absolute inset-0 w-full h-full object-contain"
-              />
-              <TorrentPlayer file={localFile} videoRef={videoRef} />
-            </>
+          {p2p.status !== "idle" && (
+            <LocalPlayer />
           )}
 
           {/* Non-host overlay (YouTube only) */}
@@ -374,21 +354,26 @@ export default function VideoPlayer() {
                 />
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  disabled={uploadProgress !== null}
+                  disabled={p2p.status === "validating"}
                   className="w-full py-4 rounded-2xl border-2 border-dashed border-nocta-border
                     text-[15px] font-medium text-nocta-text-secondary hover:text-nocta-text
                     hover:border-nocta-accent/40 hover:bg-white/[0.02] transition-all duration-300 cursor-pointer
                     relative overflow-hidden group shadow-sm"
                 >
-                  <div className="flex items-center justify-center gap-2">
-                    <svg className="w-5 h-5 text-nocta-text-muted group-hover:text-nocta-accent transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                    </svg>
-                    {uploadProgress !== null ? "Checking Codec..." : "Stream local video file"}
+                  <div className="flex flex-col items-center justify-center gap-1">
+                    <div className="flex items-center gap-2">
+                      <svg className="w-5 h-5 text-nocta-text-muted group-hover:text-nocta-accent transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                      </svg>
+                      {p2p.status === "validating" ? "Checking Codec..." : "Stream local video file"}
+                    </div>
+                    <span className="text-[11px] text-nocta-text-muted/70 mt-1 uppercase tracking-wider font-semibold">
+                      [Experimental] MP4 / H.264 Only
+                    </span>
                   </div>
                 </button>
-                {validationError && (
-                  <p className="text-[14px] text-red-400 mt-3 text-center">{validationError}</p>
+                {p2p.error && p2p.error.category === "VALIDATION_ERROR" && (
+                  <p className="text-[14px] text-red-400 mt-3 text-center">{p2p.error.message}</p>
                 )}
               </>
             ) : (

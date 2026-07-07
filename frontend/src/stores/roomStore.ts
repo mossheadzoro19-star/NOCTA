@@ -8,7 +8,7 @@ export interface Participant { socketId: string; userId: string; username: strin
 export interface PlaybackState { isPlaying: boolean; currentTime: number; lastUpdated: number; playbackRate: number; videoUrl: string; }
 export interface ChatMessage { id: string; userId: string; username: string; avatarColor: string; content: string; type: "message" | "reaction" | "system"; createdAt: string; }
 export interface Toast { id: string; message: string; type: "info" | "success" | "error" | "warning"; }
-export interface P2PState { magnetURI: string | null; status: "idle" | "validating" | "seeding" | "discovering" | "buffering" | "ready" | "playing" | "degraded" | "error"; downloadSpeed: number; uploadSpeed: number; peers: number; progress: number; bufferHealth: "good" | "warning" | "critical"; errorReason: string | null; }
+import { P2PState as LocalP2PState } from "@/types/localMedia";
 
 // --- Root State Interface ---
 export interface RootState extends IdentitySlice, RoomSlice, SyncSlice, P2PSlice, UISlice, DiagnosticsSlice {}
@@ -98,14 +98,27 @@ const createSyncSlice: StateCreator<RootState, [], [], SyncSlice> = (set) => ({
 
 // 4. P2P Slice
 export interface P2PSlice {
-  p2p: P2PState;
-  setP2PState: (state: Partial<P2PState>) => void;
+  p2p: LocalP2PState;
+  setP2PState: (state: Partial<LocalP2PState>) => void;
   cleanupP2P: () => void;
 }
+const initialP2PState: LocalP2PState = {
+  sessionId: null,
+  magnetURI: null,
+  status: "idle",
+  downloadSpeed: 0,
+  uploadSpeed: 0,
+  peers: 0,
+  progress: 0,
+  bufferedSeconds: 0,
+  bufferHealth: "good",
+  error: null,
+  metadata: null,
+};
 const createP2PSlice: StateCreator<RootState, [], [], P2PSlice> = (set) => ({
-  p2p: { magnetURI: null, status: "idle", downloadSpeed: 0, uploadSpeed: 0, peers: 0, progress: 0, bufferHealth: "good", errorReason: null },
+  p2p: initialP2PState,
   setP2PState: (p) => set((s) => ({ p2p: { ...s.p2p, ...p } })),
-  cleanupP2P: () => set({ p2p: { magnetURI: null, status: "idle", downloadSpeed: 0, uploadSpeed: 0, peers: 0, progress: 0, bufferHealth: "good", errorReason: null } })
+  cleanupP2P: () => set({ p2p: initialP2PState })
 });
 
 // 5. Diagnostics Slice
@@ -122,11 +135,16 @@ const createDiagnosticsSlice: StateCreator<RootState, [], [], DiagnosticsSlice> 
 export interface UISlice {
   messages: ChatMessage[];
   addMessage: (m: ChatMessage) => void;
+  updateMessageId: (tempId: string, realMessage: ChatMessage) => void;
+  removeMessage: (id: string) => void;
   setMessages: (m: ChatMessage[]) => void;
   typingUsers: string[];
   setTypingUsers: (u: string[]) => void;
   isChatOpen: boolean;
   toggleChat: () => void;
+  unreadCount: number;
+  incrementUnread: () => void;
+  clearUnread: () => void;
   authModalOpen: boolean;
   setAuthModalOpen: (open: boolean) => void;
   toasts: Toast[];
@@ -141,11 +159,20 @@ const createUISlice: StateCreator<RootState, [], [], UISlice> = (set, get) => ({
     if (s.messages.some((msg) => msg.id === m.id)) return s;
     return { messages: [...s.messages.slice(-200), m] };
   }),
+  updateMessageId: (tempId, realMessage) => set((s) => ({
+    messages: s.messages.map((m) => m.id === tempId ? realMessage : m)
+  })),
+  removeMessage: (id) => set((s) => ({
+    messages: s.messages.filter((m) => m.id !== id)
+  })),
   setMessages: (messages) => set({ messages }),
   typingUsers: [],
   setTypingUsers: (typingUsers) => set({ typingUsers }),
   isChatOpen: true,
-  toggleChat: () => set((s) => ({ isChatOpen: !s.isChatOpen })),
+  toggleChat: () => set((s) => ({ isChatOpen: !s.isChatOpen, unreadCount: s.isChatOpen ? s.unreadCount : 0 })),
+  unreadCount: 0,
+  incrementUnread: () => set((s) => ({ unreadCount: s.isChatOpen ? 0 : s.unreadCount + 1 })),
+  clearUnread: () => set({ unreadCount: 0 }),
   authModalOpen: false,
   setAuthModalOpen: (authModalOpen) => set({ authModalOpen }),
   toasts: [],

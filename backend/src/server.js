@@ -3,11 +3,15 @@ require('dotenv').config();
 const express = require('express');
 const { createServer } = require('http');
 const cors = require('cors');
-const path = require('path');
-const multer = require('multer');
+const helmet = require('helmet');
+const logger = require('./config/logger');
+const validateEnv = require('./config/env');
 const connectDB = require('./config/db');
 const initSocket = require('./socket');
 const { apiLimiter } = require('./middleware/rateLimiter');
+
+// Validate environment before anything else
+validateEnv();
 
 // Routes
 const authRoutes = require('./routes/auth');
@@ -17,9 +21,20 @@ const healthRoutes = require('./routes/health');
 const app = express();
 const httpServer = createServer(app);
 
+// Parse CLIENT_URL — supports comma-separated list for multi-origin (dev + prod)
+const allowedOrigins = (process.env.CLIENT_URL || 'http://localhost:3000')
+  .split(',')
+  .map((o) => o.trim());
+
 // Middleware
+app.use(helmet({ contentSecurityPolicy: false })); // CSP disabled temporarily for Socket.IO compat
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:3000',
+  origin: (origin, callback) => {
+    // Allow requests with no origin (e.g. curl, Render health checks)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    callback(new Error(`CORS: origin ${origin} not allowed`));
+  },
   credentials: true,
 }));
 app.use(express.json());
@@ -33,37 +48,9 @@ app.use('/api/health', healthRoutes);
 // Socket.IO
 const io = initSocket(httpServer);
 
-// File Upload Configuration
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, 'uploads/'),
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  }
-});
-
-const upload = multer({ 
-  storage,
-  limits: { fileSize: 500 * 1024 * 1024 }, // 500MB limit
-  fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith('video/')) cb(null, true);
-    else cb(new Error('Only videos are allowed'));
-  }
-});
-
-// Upload Route
-app.post('/api/upload', upload.single('video'), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
-  const fileUrl = `/uploads/${req.file.filename}`;
-  res.json({ url: fileUrl });
-});
-
-// Serve static files from uploads folder
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
-
-// Global error handler — catch unhandled route/middleware errors
+// Global error handler
 app.use((err, req, res, next) => {
-  console.error('[Server] Unhandled error:', err.message);
+  logger.error({ err: err.message, stack: err.stack }, 'Unhandled route error');
   res.status(500).json({ error: 'Internal server error' });
 });
 
@@ -73,48 +60,40 @@ const PORT = process.env.PORT || 3001;
 connectDB()
   .then(() => {
     httpServer.listen(PORT, () => {
-      console.log(`\n  ╔══════════════════════════════════╗`);
-      console.log(`  ║  NOCTA Backend — port ${PORT}        ║`);
-      console.log(`  ║  Socket.IO ready                 ║`);
-      console.log(`  ║  MongoDB connected               ║`);
-      console.log(`  ╚══════════════════════════════════╝\n`);
+      logger.info({ port: PORT, mongo: true, socketIO: true }, 'NOCTA backend started');
     });
   })
   .catch((err) => {
-    console.error('[Server] Failed to connect to MongoDB:', err.message);
-    console.log('[Server] Starting WITHOUT database — socket features only...\n');
+    logger.error({ err: err.message }, 'Failed to connect to MongoDB');
+    logger.warn('Starting WITHOUT database — socket features only');
     httpServer.listen(PORT, () => {
-      console.log(`\n  ╔══════════════════════════════════╗`);
-      console.log(`  ║  NOCTA Backend — port ${PORT}        ║`);
-      console.log(`  ║  Socket.IO ready                 ║`);
-      console.log(`  ║  ⚠ MongoDB NOT connected         ║`);
-      console.log(`  ╚══════════════════════════════════╝\n`);
+      logger.info({ port: PORT, mongo: false, socketIO: true }, 'NOCTA backend started (no DB)');
     });
   });
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('[Server] SIGTERM received. Shutting down gracefully...');
+const shutdown = (signal) => {
+  logger.info({ signal }, 'Shutdown signal received');
   io.close();
   httpServer.close(() => {
+    logger.info('HTTP server closed');
     process.exit(0);
   });
-});
+  // Force exit after 10s if graceful shutdown hangs
+  setTimeout(() => {
+    logger.error('Forced exit after timeout');
+    process.exit(1);
+  }, 10000);
+};
 
-process.on('SIGINT', () => {
-  console.log('[Server] SIGINT received. Shutting down...');
-  io.close();
-  httpServer.close(() => {
-    process.exit(0);
-  });
-});
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 
-// Catch unhandled promise rejections
 process.on('unhandledRejection', (reason, promise) => {
-  console.error('[Server] Unhandled Rejection at:', promise, 'reason:', reason);
+  logger.error({ reason }, 'Unhandled promise rejection');
 });
 
 process.on('uncaughtException', (err) => {
-  console.error('[Server] Uncaught Exception:', err);
+  logger.fatal({ err: err.message, stack: err.stack }, 'Uncaught exception');
   process.exit(1);
 });

@@ -7,8 +7,7 @@ const messageSchema = new mongoose.Schema({
     required: true,
   },
   userId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
+    type: String, // String to support both ObjectId and guest_<nanoid> IDs
     required: true,
   },
   username: {
@@ -36,6 +35,7 @@ const messageSchema = new mongoose.Schema({
   timestamps: true,
 });
 
+// Index for querying messages by room, ordered by time
 messageSchema.index({ roomId: 1, createdAt: -1 });
 
 module.exports = mongoose.model('Message', messageSchema);

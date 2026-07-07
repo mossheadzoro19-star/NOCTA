@@ -1,25 +1,32 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
+const { nanoid } = require('nanoid');
 const User = require('../models/User');
 const { authLimiter } = require('../middleware/rateLimiter');
+const escapeRegex = require('../lib/escapeRegex');
+const logger = require('../config/logger');
 
 const router = express.Router();
+
+const AVATAR_COLORS = ['#8B9DC3', '#A7C4A0', '#C9B1D0', '#D4A88C', '#89B0AE', '#B8C9E1'];
+
+const randomAvatarColor = () => AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
 
 const generateToken = (user) => {
   return jwt.sign(
     {
-      userId: user._id,
+      userId: user._id || user.id,
       username: user.username,
       avatarColor: user.avatarColor,
+      isGuest: user.isGuest || false,
     },
     process.env.JWT_SECRET,
-    { expiresIn: '7d' }
+    { expiresIn: user.isGuest ? '24h' : '7d' }
   );
 };
 
 /**
  * POST /api/auth/register
- * Register a new user with email and password.
  */
 router.post('/register', authLimiter, async (req, res) => {
   try {
@@ -29,7 +36,6 @@ router.post('/register', authLimiter, async (req, res) => {
       return res.status(400).json({ error: 'All fields are required' });
     }
 
-    // Gmail only constraint
     if (!email.toLowerCase().endsWith('@gmail.com')) {
       return res.status(400).json({ error: 'Only @gmail.com addresses are allowed' });
     }
@@ -38,19 +44,18 @@ router.post('/register', authLimiter, async (req, res) => {
       return res.status(400).json({ error: 'Username must be 2-20 characters' });
     }
 
-    // Password constraints: 8+ chars, at least one number and one special char
     const passwordRegex = /^(?=.*[0-9])(?=.*[!@#$%^&*])(?=.{8,})/;
     if (!passwordRegex.test(password)) {
-      return res.status(400).json({ 
-        error: 'Password must be 8+ characters and include a number and a special character' 
+      return res.status(400).json({
+        error: 'Password must be 8+ characters and include a number and a special character'
       });
     }
 
-    // Check if user exists (case-insensitive check for username)
+    const escaped = escapeRegex(username);
     const existingUser = await User.findOne({
       $or: [
         { email: email.toLowerCase() },
-        { username: { $regex: new RegExp(`^${username}$`, 'i') } }
+        { username: { $regex: new RegExp(`^${escaped}$`, 'i') } }
       ]
     });
 
@@ -70,6 +75,8 @@ router.post('/register', authLimiter, async (req, res) => {
 
     const token = generateToken(user);
 
+    logger.info({ userId: user._id, username: user.username }, 'User registered');
+
     res.status(201).json({
       token,
       user: {
@@ -80,14 +87,13 @@ router.post('/register', authLimiter, async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('[Auth] Register error:', error);
+    logger.error({ err: error.message }, 'Register error');
     res.status(500).json({ error: 'Registration failed' });
   }
 });
 
 /**
  * POST /api/auth/login
- * Login with email and password.
  */
 router.post('/login', authLimiter, async (req, res) => {
   try {
@@ -104,6 +110,8 @@ router.post('/login', authLimiter, async (req, res) => {
 
     const token = generateToken(user);
 
+    logger.info({ userId: user._id, username: user.username }, 'User logged in');
+
     res.json({
       token,
       user: {
@@ -114,16 +122,16 @@ router.post('/login', authLimiter, async (req, res) => {
       },
     });
   } catch (error) {
-    console.error('[Auth] Login error:', error);
+    logger.error({ err: error.message }, 'Login error');
     res.status(500).json({ error: 'Login failed' });
   }
 });
 
 /**
  * POST /api/auth/guest
- * Create guest user with username, return JWT.
+ * Stateless — no database write. Guest identity lives only in the JWT.
  */
-router.post('/guest', authLimiter, async (req, res) => {
+router.post('/guest', authLimiter, (req, res) => {
   try {
     const { username } = req.body;
 
@@ -132,94 +140,35 @@ router.post('/guest', authLimiter, async (req, res) => {
     }
 
     const cleanUsername = username.trim();
+    const guestId = `guest_${nanoid(12)}`;
+    const avatarColor = randomAvatarColor();
 
-    // Check if username is taken (case-insensitive)
-    const existing = await User.findOne({ 
-      username: { $regex: new RegExp(`^${cleanUsername}$`, 'i') } 
-    });
-    if (existing) {
-      return res.status(409).json({ error: 'Username already taken' });
-    }
+    const token = jwt.sign(
+      { userId: guestId, username: cleanUsername, avatarColor, isGuest: true },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
 
-    const user = await User.create({
-      username: cleanUsername,
-      isGuest: true,
-    });
-
-    const token = generateToken(user);
+    logger.info({ guestId, username: cleanUsername }, 'Guest session created');
 
     res.status(201).json({
       token,
       user: {
-        id: user._id,
-        username: user.username,
-        avatarColor: user.avatarColor,
+        id: guestId,
+        username: cleanUsername,
+        avatarColor,
         isGuest: true,
       },
     });
   } catch (error) {
-    console.error('[Auth] Guest creation error:', error);
-    res.status(500).json({ error: 'Failed to create guest user' });
-  }
-});
-
-/**
- * POST /api/auth/google
- * Handle Google sign-in.
- * NOTE: In a real app, you would verify the idToken from Google.
- */
-router.post('/google', authLimiter, async (req, res) => {
-  try {
-    const { email, username, googleId } = req.body;
-
-    if (!email || !googleId) {
-      return res.status(400).json({ error: 'Invalid Google data' });
-    }
-
-    let user = await User.findOne({ $or: [{ googleId }, { email: email.toLowerCase() }] });
-
-    if (!user) {
-      // Check if username is taken
-      const usernameTaken = await User.findOne({ 
-        username: { $regex: new RegExp(`^${username}$`, 'i') } 
-      });
-      
-      const finalUsername = usernameTaken 
-        ? `${username}${Math.floor(1000 + Math.random() * 9000)}` 
-        : username;
-
-      user = await User.create({
-        username: finalUsername,
-        email: email.toLowerCase(),
-        googleId,
-        isGuest: false,
-      });
-    } else if (!user.googleId) {
-      // Link Google ID if user already exists by email
-      user.googleId = googleId;
-      await user.save();
-    }
-
-    const token = generateToken(user);
-
-    res.json({
-      token,
-      user: {
-        id: user._id,
-        username: user.username,
-        avatarColor: user.avatarColor,
-        isGuest: false,
-      },
-    });
-  } catch (error) {
-    console.error('[Auth] Google error:', error);
-    res.status(500).json({ error: 'Google sign-in failed' });
+    logger.error({ err: error.message }, 'Guest creation error');
+    res.status(500).json({ error: 'Failed to create guest session' });
   }
 });
 
 /**
  * GET /api/auth/me
- * Verify token and return user data.
+ * Verify token and return user data. Handles both DB users and stateless guests.
  */
 router.get('/me', async (req, res) => {
   const authHeader = req.headers.authorization;
@@ -229,8 +178,21 @@ router.get('/me', async (req, res) => {
 
   try {
     const decoded = jwt.verify(authHeader.split(' ')[1], process.env.JWT_SECRET);
-    const user = await User.findById(decoded.userId).select('-__v');
 
+    // Stateless guests — return JWT payload directly
+    if (decoded.isGuest) {
+      return res.json({
+        user: {
+          id: decoded.userId,
+          username: decoded.username,
+          avatarColor: decoded.avatarColor,
+          isGuest: true,
+        },
+      });
+    }
+
+    // DB users — fetch from Mongo
+    const user = await User.findById(decoded.userId).select('-__v');
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }

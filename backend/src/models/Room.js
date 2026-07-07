@@ -14,8 +14,7 @@ const roomSchema = new mongoose.Schema({
     maxlength: 50,
   },
   hostId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
+    type: String, // String to support both Mongo ObjectIds and guest IDs
     required: true,
   },
   videoUrl: {
@@ -45,5 +44,20 @@ const roomSchema = new mongoose.Schema({
 });
 
 roomSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+
+// Cascade-delete messages when room is removed (TTL or manual)
+roomSchema.pre('deleteOne', { document: true, query: false }, async function () {
+  const Message = mongoose.model('Message');
+  await Message.deleteMany({ roomId: this._id });
+});
+
+// Also handle findOneAndDelete / TTL cleanup
+roomSchema.pre('findOneAndDelete', async function () {
+  const room = await this.model.findOne(this.getFilter());
+  if (room) {
+    const Message = mongoose.model('Message');
+    await Message.deleteMany({ roomId: room._id });
+  }
+});
 
 module.exports = mongoose.model('Room', roomSchema);

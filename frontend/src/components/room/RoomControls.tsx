@@ -16,6 +16,7 @@ export default function RoomControls() {
   const roomName = useRoomStore((s) => s.roomName);
   const toggleChat = useRoomStore((s) => s.toggleChat);
   const isChatOpen = useRoomStore((s) => s.isChatOpen);
+  const unreadCount = useRoomStore((s) => s.unreadCount);
   const addToast = useRoomStore((s) => s.addToast);
 
   const [showReactions, setShowReactions] = useState(false);
@@ -110,7 +111,7 @@ export default function RoomControls() {
         {/* Chat toggle */}
         <button
           onClick={toggleChat}
-          className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center
+          className={`relative w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center
             transition-all duration-300 cursor-pointer
             ${isChatOpen
               ? "bg-nocta-accent/10 text-nocta-accent"
@@ -120,6 +121,9 @@ export default function RoomControls() {
             stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
             <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
           </svg>
+          {!isChatOpen && unreadCount > 0 && (
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-nocta-accent rounded-full shadow-[0_0_8px_rgba(168,158,200,0.8)]" />
+          )}
         </button>
 
         {/* Leave */}

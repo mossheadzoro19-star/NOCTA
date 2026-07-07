@@ -1,15 +1,17 @@
 /**
  * In-Memory Room State Manager
- * 
+ *
  * ALL transient state lives here — NOT in MongoDB.
- * This handles: participants, playback state, typing, peer mapping.
- * 
+ * Handles: participants, playback state, typing, peer mapping, kicked users.
+ *
  * Structure:
  * activeRooms = Map<roomCode, {
  *   participants: Map<socketId, { userId, username, avatarColor, joinedAt, isHost }>,
  *   playback: { isPlaying, currentTime, lastUpdated, playbackRate, videoUrl },
  *   typing: Set<username>,
- *   peers: Map<socketId, { userId, username }>
+ *   peers: Map<socketId, { userId, username }>,
+ *   kicked: Set<userId>,
+ *   p2p: { magnetURI }
  * }>
  */
 
@@ -35,6 +37,7 @@ class RoomStateManager {
       },
       typing: new Set(),
       peers: new Map(),
+      kicked: new Set(),
     };
 
     room.participants.set(hostSocketId, {
@@ -60,6 +63,43 @@ class RoomStateManager {
 
   deleteRoom(roomCode) {
     this.activeRooms.delete(roomCode);
+  }
+
+  // --- Kicked Users ---
+
+  kickUser(roomCode, userId) {
+    const room = this.activeRooms.get(roomCode);
+    if (!room) return;
+    room.kicked.add(userId);
+  }
+
+  isKicked(roomCode, userId) {
+    const room = this.activeRooms.get(roomCode);
+    if (!room) return false;
+    return room.kicked.has(userId);
+  }
+
+  // --- Name Conflict Resolution ---
+
+  /**
+   * Resolve username conflicts within a room.
+   * If "Alex" already exists, returns "Alex (2)". If "Alex (2)" exists, returns "Alex (3)", etc.
+   */
+  resolveUsername(roomCode, username) {
+    const room = this.activeRooms.get(roomCode);
+    if (!room) return username;
+
+    const existing = Array.from(room.participants.values()).map((p) => p.username.toLowerCase());
+
+    if (!existing.includes(username.toLowerCase())) {
+      return username;
+    }
+
+    let suffix = 2;
+    while (existing.includes(`${username} (${suffix})`.toLowerCase())) {
+      suffix++;
+    }
+    return `${username} (${suffix})`;
   }
 
   // --- Participants ---
@@ -112,6 +152,21 @@ class RoomStateManager {
     }
 
     return { participant, roomDeleted: false };
+  }
+
+  /**
+   * Remove a participant by userId (for kick). Returns the socketId that was removed.
+   */
+  removeParticipantByUserId(roomCode, userId) {
+    const room = this.activeRooms.get(roomCode);
+    if (!room) return null;
+
+    for (const [socketId, participant] of room.participants.entries()) {
+      if (participant.userId === userId) {
+        return { socketId, ...this.removeParticipant(roomCode, socketId) };
+      }
+    }
+    return null;
   }
 
   getParticipants(roomCode) {

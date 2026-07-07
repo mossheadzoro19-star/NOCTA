@@ -1,14 +1,26 @@
 const Room = require('../models/Room');
 const roomState = require('./roomState');
+const logger = require('../config/logger');
+const { validatePayload } = require('../lib/validate');
 
 module.exports = (io, socket) => {
   /**
    * room:join — Join a room by code
    */
-  socket.on('room:join', async ({ roomCode }) => {
+  socket.on('room:join', async (payload) => {
     try {
-      roomCode = roomCode?.toUpperCase();
-      if (!roomCode) return;
+      const { valid, data } = validatePayload(payload, {
+        roomCode: { type: 'string', required: true, minLength: 1, maxLength: 10 },
+      });
+      if (!valid) return;
+
+      const roomCode = data.roomCode.toUpperCase();
+
+      // Check if kicked from this room
+      if (roomState.isKicked(roomCode, socket.user.userId)) {
+        socket.emit('room:error', { message: 'You have been removed from this room' });
+        return;
+      }
 
       // Validate room exists in DB
       const room = await Room.findOne({ roomCode, isActive: true });
@@ -30,20 +42,22 @@ module.exports = (io, socket) => {
         handleLeaveRoom(io, socket, prevRoom);
       }
 
+      // Resolve username conflicts within the room
+      const resolvedUsername = roomState.resolveUsername(roomCode, socket.user.username);
+
       // Join Socket.IO room
       socket.join(roomCode);
       socket.roomCode = roomCode;
 
       const userData = {
         userId: socket.user.userId,
-        username: socket.user.username,
+        username: resolvedUsername,
         avatarColor: socket.user.avatarColor,
       };
 
       // Add to in-memory state
       const existingRoom = roomState.getRoom(roomCode);
       if (!existingRoom) {
-        // First user — create room state, they become host
         roomState.createRoom(roomCode, socket.id, userData);
       } else {
         roomState.addParticipant(roomCode, socket.id, userData);
@@ -68,9 +82,9 @@ module.exports = (io, socket) => {
         participants,
       });
 
-      console.log(`[Room] ${socket.user.username} joined ${roomCode} (${participants.length}/${room.maxParticipants})`);
+      logger.info({ roomCode, username: resolvedUsername, count: participants.length }, 'User joined room');
     } catch (error) {
-      console.error('[Room] Join error:', error);
+      logger.error({ err: error.message }, 'Room join error');
       socket.emit('room:error', { message: 'Failed to join room' });
     }
   });
@@ -86,23 +100,70 @@ module.exports = (io, socket) => {
   });
 
   /**
-   * room:update-video — Host sets video URL
+   * room:kick — Host kicks a user by userId
    */
-  socket.on('room:update-video', async ({ videoUrl }) => {
+  socket.on('room:kick', (payload) => {
     const roomCode = socket.roomCode;
     if (!roomCode || !roomState.isHost(roomCode, socket.id)) return;
 
+    const { valid, data } = validatePayload(payload, {
+      userId: { type: 'string', required: true },
+    });
+    if (!valid) return;
+
+    // Cannot kick yourself
+    if (data.userId === socket.user.userId) return;
+
+    // Add to kicked set (prevents rejoining)
+    roomState.kickUser(roomCode, data.userId);
+
+    // Remove from room
+    const result = roomState.removeParticipantByUserId(roomCode, data.userId);
+    if (!result?.participant) return;
+
+    // Disconnect the kicked socket from the room
+    const kickedSocket = io.sockets.sockets.get(result.socketId);
+    if (kickedSocket) {
+      kickedSocket.leave(roomCode);
+      kickedSocket.roomCode = null;
+      kickedSocket.emit('room:kicked', { message: 'You have been removed by the host' });
+    }
+
+    // Notify remaining participants
+    const participants = roomState.getParticipants(roomCode);
+    io.to(roomCode).emit('room:user-left', {
+      user: { userId: result.participant.userId, username: result.participant.username },
+      participants,
+      kicked: true,
+    });
+
+    logger.info({ roomCode, kicked: result.participant.username, by: socket.user.username }, 'User kicked');
+  });
+
+  /**
+   * room:update-video — Host sets video URL
+   */
+  socket.on('room:update-video', async (payload) => {
+    const roomCode = socket.roomCode;
+    if (!roomCode || !roomState.isHost(roomCode, socket.id)) return;
+
+    const { valid, data } = validatePayload(payload, {
+      videoUrl: { type: 'string', required: true, maxLength: 2000 },
+    });
+    if (!valid) return;
+
     // Update in DB (persistent)
-    await Room.updateOne({ roomCode }, { videoUrl });
+    await Room.updateOne({ roomCode }, { videoUrl: data.videoUrl });
 
     // Update in-memory
     roomState.updatePlayback(roomCode, {
-      videoUrl,
+      videoUrl: data.videoUrl,
       currentTime: 0,
       isPlaying: false,
     });
 
-    io.to(roomCode).emit('room:video-changed', { videoUrl });
+    io.to(roomCode).emit('room:video-changed', { videoUrl: data.videoUrl });
+    logger.info({ roomCode, videoUrl: data.videoUrl.substring(0, 50) }, 'Video changed');
   });
 
   /**
@@ -124,9 +185,10 @@ function handleLeaveRoom(io, socket, roomCode) {
   socket.roomCode = null;
 
   if (result.roomDeleted) {
-    console.log(`[Room] ${roomCode} deleted (empty)`);
+    logger.info({ roomCode }, 'Room deleted (empty)');
   } else {
     const participants = roomState.getParticipants(roomCode);
+    const newHostInfo = result.participant.isHost ? participants.find((p) => p.isHost) : null;
 
     io.to(roomCode).emit('room:user-left', {
       user: {
@@ -134,9 +196,17 @@ function handleLeaveRoom(io, socket, roomCode) {
         username: result.participant.username,
       },
       participants,
-      newHost: result.participant.isHost ? participants.find(p => p.isHost)?.username : null,
+      newHost: newHostInfo?.username || null,
     });
+
+    // Notify about host transfer
+    if (newHostInfo) {
+      io.to(roomCode).emit('room:host-changed', {
+        username: newHostInfo.username,
+        userId: newHostInfo.userId,
+      });
+    }
   }
 
-  console.log(`[Room] ${result.participant.username} left ${roomCode}`);
+  logger.info({ roomCode, username: result.participant.username }, 'User left room');
 }

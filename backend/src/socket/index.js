@@ -4,21 +4,28 @@ const roomHandler = require('./roomHandler');
 const chatHandler = require('./chatHandler');
 const syncHandler = require('./syncHandler');
 const signalingHandler = require('./signalingHandler');
+const logger = require('../config/logger');
 
 const initSocket = (httpServer) => {
+  const allowedOrigins = (process.env.CLIENT_URL || 'http://localhost:3000')
+    .split(',')
+    .map((o) => o.trim());
+
   const io = new Server(httpServer, {
     cors: {
-      origin: process.env.CLIENT_URL || 'http://localhost:3000',
+      origin: (origin, callback) => {
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.includes(origin)) return callback(null, true);
+        callback(new Error(`Socket CORS: origin ${origin} not allowed`));
+      },
       methods: ['GET', 'POST'],
       credentials: true,
     },
     pingTimeout: 60000,
     pingInterval: 25000,
-    // Allow both transports for reliability
     transports: ['websocket', 'polling'],
-    // Connection state recovery
     connectionStateRecovery: {
-      maxDisconnectionDuration: 2 * 60 * 1000, // 2 minutes
+      maxDisconnectionDuration: 2 * 60 * 1000,
       skipMiddlewares: false,
     },
   });
@@ -27,43 +34,41 @@ const initSocket = (httpServer) => {
   io.use(socketAuthMiddleware);
 
   io.on('connection', (socket) => {
-    console.log(`[Socket] Connected: ${socket.user.username} (${socket.id})`);
+    logger.info({ username: socket.user.username, socketId: socket.id }, 'Socket connected');
 
-    // Wrap handler registration in try/catch to prevent one bad handler from killing the connection
     try {
       roomHandler(io, socket);
       chatHandler(io, socket);
       syncHandler(io, socket);
       signalingHandler(io, socket);
     } catch (err) {
-      console.error('[Socket] Handler registration error:', err);
+      logger.error({ err: err.message }, 'Handler registration error');
     }
 
     // Handle reconnection state recovery
     socket.on('reconnect:restore', () => {
       const roomCode = socket.roomCode;
       if (roomCode) {
+        const roomState = require('./roomState');
         socket.emit('reconnect:state', {
           roomCode,
-          playback: require('./roomState').getPlayback(roomCode),
-          participants: require('./roomState').getParticipants(roomCode),
+          playback: roomState.getPlayback(roomCode),
+          participants: roomState.getParticipants(roomCode),
         });
       }
     });
 
     socket.on('disconnect', (reason) => {
-      console.log(`[Socket] Disconnected: ${socket.user?.username} (${reason})`);
+      logger.info({ username: socket.user?.username, reason }, 'Socket disconnected');
     });
 
-    // Catch any unhandled socket errors to prevent crashes
     socket.on('error', (err) => {
-      console.error(`[Socket] Error for ${socket.user?.username}:`, err.message);
+      logger.error({ username: socket.user?.username, err: err.message }, 'Socket error');
     });
   });
 
-  // Server-level error handling
   io.engine.on('connection_error', (err) => {
-    console.error('[Socket.IO Engine] Connection error:', err.code, err.message);
+    logger.error({ code: err.code, message: err.message }, 'Socket.IO engine connection error');
   });
 
   return io;

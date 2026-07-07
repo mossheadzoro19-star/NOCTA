@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: nocta-backend
+    runtime: node
+    region: singapore     # Closest to India for low latency
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        fromService:
+          type: web
+          name: nocta-backend
+          property: port
+      - key: MONGODB_URI
+        sync: false       # Set manually in Render dashboard
+      - key: JWT_SECRET
+        generateValue: true   # Render auto-generates a secure secret
+      - key: CLIENT_URL
+        sync: false       # Set manually after Vercel deploys
+      - key: LOG_LEVEL
+        value: info
