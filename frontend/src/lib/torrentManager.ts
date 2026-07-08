@@ -1,9 +1,23 @@
-import WebTorrent from "webtorrent";
 import { ICE_SERVERS } from "../config/media";
 import { ENABLE_LOCAL_MEDIA } from "../config/media";
 
+// WebTorrent is imported lazily to avoid top-level os.tmpdir() crash in Next.js
+type WebTorrentType = typeof import("webtorrent").default;
+type WTInstance = InstanceType<WebTorrentType>;
+type WTTorrent = WTInstance extends { torrents: (infer T)[] } ? T : any;
+
+let WebTorrentCtor: WebTorrentType | null = null;
+
+async function loadWebTorrent(): Promise<WebTorrentType> {
+  if (!WebTorrentCtor) {
+    const mod = await import("webtorrent");
+    WebTorrentCtor = mod.default;
+  }
+  return WebTorrentCtor;
+}
+
 export class TorrentManager {
-  private client: WebTorrent.Instance | null = null;
+  private client: any | null = null;
   private logger = (msg: string, ...args: any[]) => {
     if (process.env.NODE_ENV === "development") {
       console.log(`[TorrentManager] ${msg}`, ...args);
@@ -14,12 +28,13 @@ export class TorrentManager {
    * Lazily initialize the singleton client.
    * Ensures exactly ONE WebTorrent client exists in memory.
    */
-  private getClient(): WebTorrent.Instance {
+  private async getClient(): Promise<any> {
     if (!ENABLE_LOCAL_MEDIA) throw new Error("Local media is disabled.");
     
     if (!this.client) {
       this.logger("Initializing global WebTorrent client");
-      this.client = new WebTorrent({
+      const WT = await loadWebTorrent();
+      this.client = new WT({
         tracker: {
           rtcConfig: {
             iceServers: ICE_SERVERS
@@ -27,7 +42,7 @@ export class TorrentManager {
         }
       });
 
-      this.client.on("error", (err) => {
+      this.client.on("error", (err: any) => {
         this.logger("Global client error", err);
       });
     }
@@ -37,12 +52,12 @@ export class TorrentManager {
   /**
    * Seed a file. Automatically cancels/destroys previous torrents.
    */
-  seed(file: File, onSeed: (torrent: WebTorrent.Torrent) => void): WebTorrent.Torrent {
-    const client = this.getClient();
-    this.cleanupTorrents(); // Only 1 torrent allowed at a time for this feature
+  async seed(file: File, onSeed: (torrent: any) => void): Promise<any> {
+    const client = await this.getClient();
+    this.cleanupTorrents();
 
     this.logger(`Seeding file: ${file.name}`);
-    const torrent = client.seed(file, (t) => {
+    const torrent = client.seed(file, (t: any) => {
       this.logger("Seed successful", t.infoHash);
       onSeed(t);
     });
@@ -53,12 +68,12 @@ export class TorrentManager {
   /**
    * Add a magnet URI. Automatically cancels/destroys previous torrents.
    */
-  add(magnetURI: string, onAdd: (torrent: WebTorrent.Torrent) => void): WebTorrent.Torrent {
-    const client = this.getClient();
+  async add(magnetURI: string, onAdd: (torrent: any) => void): Promise<any> {
+    const client = await this.getClient();
     this.cleanupTorrents();
 
     this.logger(`Adding magnet: ${magnetURI.substring(0, 40)}...`);
-    const torrent = client.add(magnetURI, (t) => {
+    const torrent = client.add(magnetURI, (t: any) => {
       this.logger("Add successful", t.infoHash);
       onAdd(t);
     });
@@ -72,7 +87,7 @@ export class TorrentManager {
   cleanupTorrents() {
     if (!this.client) return;
     
-    this.client.torrents.forEach((t) => {
+    this.client.torrents.forEach((t: any) => {
       this.logger(`Destroying active torrent: ${t.infoHash}`);
       t.destroy();
     });
@@ -88,7 +103,7 @@ export class TorrentManager {
   destroyClient() {
     if (this.client) {
       this.logger("Destroying global WebTorrent client");
-      this.client.destroy((err) => {
+      this.client.destroy((err: any) => {
         if (err) this.logger("Error destroying client", err);
       });
       this.client = null;

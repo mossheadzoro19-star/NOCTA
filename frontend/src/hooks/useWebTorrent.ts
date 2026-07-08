@@ -50,7 +50,7 @@ export function useWebTorrent() {
 
     // 3. Seed
     try {
-      torrentManager.seed(file, (torrent) => {
+      await torrentManager.seed(file, (torrent) => {
         if (signal.aborted) {
           torrent.destroy();
           return;
@@ -86,7 +86,7 @@ export function useWebTorrent() {
   /**
    * Guest entry point: Discover and download from a magnet URI.
    */
-  const connectToHost = useCallback((magnetURI: string) => {
+  const connectToHost = useCallback(async (magnetURI: string) => {
     if (isHost) return;
 
     cancelSession();
@@ -97,7 +97,7 @@ export function useWebTorrent() {
     setP2PState({ sessionId, status: "discovering", magnetURI, error: null });
 
     try {
-      torrentManager.add(magnetURI, (torrent) => {
+      await torrentManager.add(magnetURI, (torrent) => {
         if (signal.aborted) {
           torrent.destroy();
           return;

@@ -7,7 +7,10 @@ import { useSocket } from "@/hooks/useSocket";
 import { useRoomStore } from "@/stores/roomStore";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { apiRequest } from "@/lib/utils";
-import VideoPlayer from "@/components/room/VideoPlayer";
+import dynamic from "next/dynamic";
+const VideoPlayer = dynamic(() => import("@/components/room/VideoPlayer"), {
+  ssr: false,
+});
 import ChatSidebar from "@/components/room/ChatSidebar";
 import RoomControls from "@/components/room/RoomControls";
 import Input from "@/components/ui/Input";
