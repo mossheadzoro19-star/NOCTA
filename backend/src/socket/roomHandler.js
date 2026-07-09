@@ -92,7 +92,7 @@ module.exports = (io, socket) => {
         participants,
       });
 
-      logger.info({ roomCode, username: resolvedUsername, count: participants.length }, 'User joined room');
+      logger.info({ roomCode, username: socket.user.username, count: participants.length }, 'User joined room');
     } catch (error) {
       logger.error({ err: error.message }, 'Room join error');
       socket.emit('room:error', { message: 'Failed to join room' });
