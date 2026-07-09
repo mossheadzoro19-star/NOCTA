@@ -30,6 +30,7 @@ export function useSocket() {
         roomCode: data.roomCode,
         name: data.name,
         isHost: data.isHost,
+        isLocked: data.isLocked,
         participants: data.participants,
       });
       if (data.playback) {
@@ -53,8 +54,19 @@ export function useSocket() {
       }
     });
 
-    socket.on("room:host-changed", ({ username }) => {
+    socket.on("room:host-changed", ({ username, userId, participants }) => {
       addToast(`${username} is now the host`, "info");
+      const state = useRoomStore.getState();
+      if (participants) state.setParticipants(participants);
+      if (state.user?.id === userId) {
+        state.setRoom({ roomCode: state.roomCode!, name: state.roomName!, participants: participants || state.participants, isHost: true, isLocked: state.isLocked });
+        addToast("You are now the host!", "success");
+      }
+    });
+
+    socket.on("room:locked", ({ isLocked }) => {
+      useRoomStore.getState().setIsLocked(isLocked);
+      addToast(isLocked ? "Room locked (no new guests can join)" : "Room unlocked", "info");
     });
 
     socket.on("room:kicked", ({ message }) => {
@@ -236,6 +248,14 @@ export function useSocket() {
     socket?.emit("room:raise-hand", { isRaised });
   }, [socket]);
 
+  const sendToggleLock = useCallback(() => {
+    socket?.emit("room:toggle-lock");
+  }, [socket]);
+
+  const sendTransferHost = useCallback((userId: string) => {
+    socket?.emit("room:transfer-host", { userId });
+  }, [socket]);
+
   return {
     socket,
     isConnected,
@@ -247,5 +267,7 @@ export function useSocket() {
     updateVideoUrl,
     sendNudge,
     sendRaiseHand,
+    sendToggleLock,
+    sendTransferHost,
   };
 }

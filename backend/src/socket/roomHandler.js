@@ -22,6 +22,12 @@ module.exports = (io, socket) => {
         return;
       }
 
+      // Check if locked
+      if (roomState.isRoomLocked(roomCode)) {
+        socket.emit('room:error', { message: 'This room is currently locked by the host' });
+        return;
+      }
+
       // Validate room exists in DB
       const room = await Room.findOne({ roomCode, isActive: true });
       if (!room) {
@@ -77,6 +83,7 @@ module.exports = (io, socket) => {
         playback,
         participants,
         isHost: roomState.isHost(roomCode, socket.id),
+        isLocked: roomState.isRoomLocked(roomCode),
       });
 
       // Notify others
@@ -141,6 +148,42 @@ module.exports = (io, socket) => {
     });
 
     logger.info({ roomCode, kicked: result.participant.username, by: socket.user.username }, 'User kicked');
+  });
+
+  /**
+   * room:transfer-host — Host transfers privileges
+   */
+  socket.on('room:transfer-host', (payload) => {
+    const roomCode = socket.roomCode;
+    if (!roomCode || !roomState.isHost(roomCode, socket.id)) return;
+
+    const { valid, data } = validatePayload(payload, {
+      userId: { type: 'string', required: true },
+    });
+    if (!valid) return;
+
+    const newHost = roomState.transferHost(roomCode, data.userId);
+    if (newHost) {
+      const participants = roomState.getParticipants(roomCode);
+      io.to(roomCode).emit('room:host-changed', {
+        username: newHost.username,
+        userId: newHost.userId,
+        participants
+      });
+      logger.info({ roomCode, newHost: newHost.username }, 'Host transferred');
+    }
+  });
+
+  /**
+   * room:toggle-lock — Host locks/unlocks room
+   */
+  socket.on('room:toggle-lock', () => {
+    const roomCode = socket.roomCode;
+    if (!roomCode || !roomState.isHost(roomCode, socket.id)) return;
+
+    const isLocked = roomState.toggleLock(roomCode);
+    io.to(roomCode).emit('room:locked', { isLocked });
+    logger.info({ roomCode, isLocked }, 'Room lock toggled');
   });
 
   /**

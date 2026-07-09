@@ -59,26 +59,30 @@ export interface RoomSlice {
   roomCode: string | null;
   roomName: string | null;
   isHost: boolean;
+  isLocked: boolean;
   participants: Participant[];
-  setRoom: (data: { roomCode: string; name: string; isHost: boolean; participants: Participant[]; }) => void;
+  setRoom: (data: { roomCode: string; name: string; isHost: boolean; isLocked?: boolean; participants: Participant[]; }) => void;
   setParticipants: (p: Participant[]) => void;
+  setIsLocked: (locked: boolean) => void;
   clearRoom: () => void;
 }
 const createRoomSlice: StateCreator<RootState, [], [], RoomSlice> = (set, get) => ({
   roomCode: null,
   roomName: null,
   isHost: false,
+  isLocked: false,
   participants: [],
   setRoom: (data) => {
-    set({ roomCode: data.roomCode, roomName: data.name, isHost: data.isHost, participants: data.participants });
+    set({ roomCode: data.roomCode, roomName: data.name, isHost: data.isHost, isLocked: data.isLocked || false, participants: data.participants });
     if (typeof window !== "undefined") {
       sessionStorage.setItem("nocta_session", JSON.stringify({ roomCode: data.roomCode, isHost: data.isHost }));
     }
   },
   setParticipants: (participants) => set({ participants }),
+  setIsLocked: (isLocked) => set({ isLocked }),
   clearRoom: () => {
     if (typeof window !== "undefined") sessionStorage.removeItem("nocta_session");
-    set({ roomCode: null, roomName: null, isHost: false, participants: [], messages: [], typingUsers: [] });
+    set({ roomCode: null, roomName: null, isHost: false, isLocked: false, participants: [], messages: [], typingUsers: [] });
     get().resetSync();
     get().cleanupP2P();
   }

@@ -38,6 +38,7 @@ class RoomStateManager {
       typing: new Set(),
       peers: new Map(),
       kicked: new Set(),
+      isLocked: false,
     };
 
     room.participants.set(hostSocketId, {
@@ -77,6 +78,20 @@ class RoomStateManager {
     const room = this.activeRooms.get(roomCode);
     if (!room) return false;
     return room.kicked.has(userId);
+  }
+
+  // --- Lock Status ---
+  
+  toggleLock(roomCode) {
+    const room = this.activeRooms.get(roomCode);
+    if (!room) return false;
+    room.isLocked = !room.isLocked;
+    return room.isLocked;
+  }
+
+  isRoomLocked(roomCode) {
+    const room = this.activeRooms.get(roomCode);
+    return room ? room.isLocked : false;
   }
 
   // --- Name Conflict Check ---
@@ -179,6 +194,26 @@ class RoomStateManager {
     if (!room) return false;
     const participant = room.participants.get(socketId);
     return participant?.isHost || false;
+  }
+
+  transferHost(roomCode, targetUserId) {
+    const room = this.activeRooms.get(roomCode);
+    if (!room) return null;
+
+    let newHost = null;
+    let oldHost = null;
+
+    for (const [socketId, p] of room.participants.entries()) {
+      if (p.isHost) oldHost = p;
+      if (p.userId === targetUserId) newHost = p;
+    }
+
+    if (newHost) {
+      if (oldHost) oldHost.isHost = false;
+      newHost.isHost = true;
+      return newHost;
+    }
+    return null;
   }
 
   // --- Playback State ---

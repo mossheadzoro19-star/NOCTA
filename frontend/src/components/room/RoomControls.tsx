@@ -12,10 +12,12 @@ const REACTIONS = ["❤️", "😂", "🔥", "👏", "😮"];
 
 export default function RoomControls() {
   const router = useRouter();
-  const { sendReaction, leaveRoom } = useSocket();
+  const { sendReaction, leaveRoom, sendToggleLock } = useSocket();
   const { startScreenShare, stopScreenShare, isSharing } = useWebRTC();
   const roomCode = useRoomStore((s) => s.roomCode);
   const roomName = useRoomStore((s) => s.roomName);
+  const isHost = useRoomStore((s) => s.isHost);
+  const isLocked = useRoomStore((s) => s.isLocked);
   const toggleChat = useRoomStore((s) => s.toggleChat);
   const isChatOpen = useRoomStore((s) => s.isChatOpen);
   const unreadCount = useRoomStore((s) => s.unreadCount);
@@ -151,6 +153,31 @@ export default function RoomControls() {
             <path d="M8 21h8M12 17v4" />
           </svg>
         </button>
+
+        {/* Lock Room (Host Only) */}
+        {isHost && (
+          <button
+            onClick={sendToggleLock}
+            className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center
+              transition-all duration-300 cursor-pointer hidden sm:flex
+              ${isLocked
+                ? "bg-nocta-danger/10 text-nocta-danger"
+                : "text-nocta-text-muted hover:text-nocta-text-secondary hover:bg-nocta-surface"}`}
+            title={isLocked ? "Unlock room" : "Lock room"}
+          >
+            {isLocked ? (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0110 0v4" />
+              </svg>
+            ) : (
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 019.9-1" />
+              </svg>
+            )}
+          </button>
+        )}
 
         {/* Nudge */}
         <button
