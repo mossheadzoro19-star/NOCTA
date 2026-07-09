@@ -66,7 +66,9 @@ export default function RoomPage() {
         if (msgData.messages) setMessages(msgData.messages);
       } catch {}
       joinRoom(roomId);
-      setJoining(false);
+      // ponytail: DO NOT set joining to false here.
+      // Wait for roomCode === targetRoom (triggered by room:joined socket event)
+      // to naturally drop the loading state.
     };
     initRoom();
   }, [user, token, isConnected, roomId, roomCode, joinRoom, setMessages, setAuthModalOpen]);

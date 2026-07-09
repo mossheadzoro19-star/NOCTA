@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useEffect, useRef, useState, useCallback } from "react";
+import React, { createContext, useContext, useEffect, useRef, useState } from "react";
 import { Socket } from "socket.io-client";
 import { getSocket, disconnectSocket } from "@/lib/socket";
 import { useRoomStore } from "@/stores/roomStore";
@@ -17,30 +17,28 @@ const SocketContext = createContext<SocketContextType>({
 
 export function SocketProvider({ children }: { children: React.ReactNode }) {
   const [isConnected, setIsConnected] = useState(false);
-  const socketRef = useRef<Socket | null>(null);
+  // ponytail: use state (not ref) so children re-render when socket becomes available
+  const [socketInstance, setSocketInstance] = useState<Socket | null>(null);
   const token = useRoomStore((s) => s.token);
   const addToast = useRoomStore((s) => s.addToast);
   const hasShownBackendError = useRef(false);
-  const reconnectAttemptRef = useRef(0);
 
   useEffect(() => {
     // No token → no connection. Clean up any existing socket.
     if (!token) {
       disconnectSocket();
-      socketRef.current = null;
+      setSocketInstance(null);
       setIsConnected(false);
       hasShownBackendError.current = false;
-      reconnectAttemptRef.current = 0;
       return;
     }
 
     const socket = getSocket(token);
-    socketRef.current = socket;
+    setSocketInstance(socket);
 
     const onConnect = () => {
       setIsConnected(true);
       hasShownBackendError.current = false;
-      reconnectAttemptRef.current = 0;
       console.log("[Socket] Connected");
     };
 
@@ -53,8 +51,6 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
     };
 
     const onConnectError = (err: Error) => {
-      reconnectAttemptRef.current++;
-      
       // Auth errors — clear user session immediately
       if (err.message === "Authentication required" || err.message === "Invalid token") {
         useRoomStore.getState().clearUser();
@@ -72,7 +68,6 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
 
     const onReconnect = () => {
       hasShownBackendError.current = false;
-      reconnectAttemptRef.current = 0;
       addToast("Reconnected!", "success");
       socket.emit("reconnect:restore");
     };
@@ -104,7 +99,7 @@ export function SocketProvider({ children }: { children: React.ReactNode }) {
   }, [token, addToast]);
 
   return (
-    <SocketContext.Provider value={{ socket: socketRef.current, isConnected }}>
+    <SocketContext.Provider value={{ socket: socketInstance, isConnected }}>
       {children}
     </SocketContext.Provider>
   );
