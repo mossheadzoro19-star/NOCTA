@@ -256,6 +256,10 @@ export function useSocket() {
     socket?.emit("room:transfer-host", { userId });
   }, [socket]);
 
+  const sendKick = useCallback((userId: string) => {
+    socket?.emit("room:kick", { userId });
+  }, [socket]);
+
   return {
     socket,
     isConnected,
@@ -269,5 +273,6 @@ export function useSocket() {
     sendRaiseHand,
     sendToggleLock,
     sendTransferHost,
+    sendKick,
   };
 }

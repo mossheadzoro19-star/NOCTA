@@ -12,7 +12,7 @@ const REACTIONS = ["❤️", "😂", "🔥", "👏", "😮"];
 
 export default function RoomControls() {
   const router = useRouter();
-  const { sendReaction, leaveRoom, sendToggleLock } = useSocket();
+  const { sendReaction, leaveRoom, sendToggleLock, sendNudge, sendRaiseHand } = useSocket();
   const { startScreenShare, stopScreenShare, isSharing } = useWebRTC();
   const roomCode = useRoomStore((s) => s.roomCode);
   const roomName = useRoomStore((s) => s.roomName);
@@ -30,7 +30,7 @@ export default function RoomControls() {
   const handleRaiseHand = () => {
     const nextState = !isHandRaised;
     setIsHandRaised(nextState);
-    useSocket().sendRaiseHand(nextState);
+    sendRaiseHand(nextState);
   };
 
   const copyRoomCode = async () => {
@@ -55,7 +55,7 @@ export default function RoomControls() {
   return (
     <div className="h-14 sm:h-16 bg-nocta-bg border-b border-nocta-border px-3 sm:px-6 flex items-center justify-between relative z-10">
       {/* Left */}
-      <div className="flex items-center gap-2 sm:gap-4 overflow-hidden mr-2">
+      <div className="flex items-center gap-2 sm:gap-4 mr-2 relative">
         <span className="text-[15px] sm:text-[18px] font-bold text-nocta-text tracking-[-0.01em] truncate max-w-[100px] sm:max-w-[200px]">
           {roomName || "Room"}
         </span>
@@ -181,7 +181,7 @@ export default function RoomControls() {
 
         {/* Nudge */}
         <button
-          onClick={() => useSocket().sendNudge()}
+          onClick={sendNudge}
           className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center
             text-nocta-text-muted hover:text-[#D4A88C] hover:bg-[#D4A88C]/10
             transition-all duration-300 cursor-pointer hidden sm:flex"
