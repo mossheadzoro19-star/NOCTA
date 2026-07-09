@@ -4,6 +4,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRoomStore } from "@/stores/roomStore";
 import { useSocket } from "@/hooks/useSocket";
+import { useWebRTC } from "@/hooks/useWebRTC";
 import { useRouter } from "next/navigation";
 import ParticipantList from "./ParticipantList";
 
@@ -12,6 +13,7 @@ const REACTIONS = ["❤️", "😂", "🔥", "👏", "😮"];
 export default function RoomControls() {
   const router = useRouter();
   const { sendReaction, leaveRoom } = useSocket();
+  const { startScreenShare, stopScreenShare, isSharing } = useWebRTC();
   const roomCode = useRoomStore((s) => s.roomCode);
   const roomName = useRoomStore((s) => s.roomName);
   const toggleChat = useRoomStore((s) => s.toggleChat);
@@ -124,6 +126,23 @@ export default function RoomControls() {
           {!isChatOpen && unreadCount > 0 && (
             <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-nocta-accent rounded-full shadow-[0_0_8px_rgba(168,158,200,0.8)]" />
           )}
+        </button>
+
+        {/* Screen Share */}
+        <button
+          onClick={isSharing ? stopScreenShare : startScreenShare}
+          className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center
+            transition-all duration-300 cursor-pointer
+            ${isSharing
+              ? "bg-nocta-success/10 text-nocta-success"
+              : "text-nocta-text-muted hover:text-nocta-text-secondary hover:bg-nocta-surface"}`}
+          title={isSharing ? "Stop sharing" : "Share screen"}
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+            <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+            <path d="M8 21h8M12 17v4" />
+          </svg>
         </button>
 
         {/* Leave */}

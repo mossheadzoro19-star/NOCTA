@@ -7,6 +7,7 @@ import { useSocketContext } from "@/context/SocketProvider";
 import dynamic from "next/dynamic";
 import { extractYouTubeId, detectVideoSource } from "@/lib/utils";
 import { useSocket } from "@/hooks/useSocket";
+import { useWebRTC } from "@/hooks/useWebRTC";
 import Button from "@/components/ui/Button";
 import { useWebTorrent } from "@/hooks/useWebTorrent";
 import LocalPlayer from "./LocalPlayer";
@@ -21,6 +22,7 @@ declare global {
 export default function VideoPlayer() {
   const { socket } = useSocketContext();
   const { updateVideoUrl } = useSocket();
+  const { localStream, remoteStream, isSharing } = useWebRTC();
   const playback = useRoomStore((s) => s.playback);
   const isHost = useRoomStore((s) => s.isHost);
   const setPlayback = useRoomStore((s) => s.setPlayback);
@@ -33,6 +35,7 @@ export default function VideoPlayer() {
   const ignoreStateChange = useRef(false);
   const heartbeatInterval = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const rtcVideoRef = useRef<HTMLVideoElement>(null);
 
   const [urlInput, setUrlInput] = useState("");
   const [apiReady, setApiReady] = useState(false);
@@ -260,7 +263,14 @@ export default function VideoPlayer() {
     updateVideoUrl("local://" + file.name);
   };
 
-  const hasVideo = source.type !== "unknown" || p2p.status !== "idle";
+  useEffect(() => {
+    if (rtcVideoRef.current) {
+      if (remoteStream) rtcVideoRef.current.srcObject = remoteStream;
+      else if (isSharing && localStream) rtcVideoRef.current.srcObject = localStream;
+    }
+  }, [remoteStream, localStream, isSharing]);
+
+  const hasVideo = source.type !== "unknown" || p2p.status !== "idle" || isSharing || !!remoteStream;
   const videoUrl = p2p.magnetURI ? undefined : (playback.videoUrl.startsWith("/") ? `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}${playback.videoUrl}` : playback.videoUrl);
 
   return (
@@ -287,6 +297,17 @@ export default function VideoPlayer() {
           {/* Local file or WebTorrent */}
           {p2p.status !== "idle" && (
             <LocalPlayer />
+          )}
+
+          {/* WebRTC Screen Share */}
+          {(isSharing || remoteStream) && (
+            <video
+              ref={rtcVideoRef}
+              autoPlay
+              playsInline
+              muted={isSharing}
+              className="absolute inset-0 w-full h-full bg-black object-contain"
+            />
           )}
 
           {/* Non-host overlay (YouTube only) */}
