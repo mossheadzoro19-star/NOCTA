@@ -42,8 +42,11 @@ module.exports = (io, socket) => {
         handleLeaveRoom(io, socket, prevRoom);
       }
 
-      // Resolve username conflicts within the room
-      const resolvedUsername = roomState.resolveUsername(roomCode, socket.user.username);
+      // Reject duplicate usernames within the room
+      if (roomState.hasUsername(roomCode, socket.user.username)) {
+        socket.emit('room:error', { message: 'Username already in use in this room' });
+        return;
+      }
 
       // Join Socket.IO room
       socket.join(roomCode);
@@ -51,7 +54,7 @@ module.exports = (io, socket) => {
 
       const userData = {
         userId: socket.user.userId,
-        username: resolvedUsername,
+        username: socket.user.username,
         avatarColor: socket.user.avatarColor,
       };
 

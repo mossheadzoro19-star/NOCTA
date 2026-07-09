@@ -20,6 +20,12 @@ router.post('/', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'Room name must be 1-50 characters' });
     }
 
+    // ponytail: one regex covers XSS, injection, and weird unicode
+    const ROOM_NAME_REGEX = /^[a-zA-Z0-9 _\-'.!]+$/;
+    if (!ROOM_NAME_REGEX.test(name.trim())) {
+      return res.status(400).json({ error: 'Room name can only contain letters, numbers, spaces, and basic punctuation' });
+    }
+
     const roomCode = nanoid(6).toUpperCase();
 
     const room = await Room.create({

@@ -12,6 +12,23 @@ const AVATAR_COLORS = ['#8B9DC3', '#A7C4A0', '#C9B1D0', '#D4A88C', '#89B0AE', '#
 
 const randomAvatarColor = () => AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
 
+// ponytail: one regex, one list — covers all username validation
+const USERNAME_REGEX = /^[a-zA-Z0-9_]+$/;
+const RESERVED_NAMES = ['admin', 'system', 'nocta', 'host', 'mod', 'moderator', 'bot'];
+
+function validateUsername(username) {
+  if (!username || username.trim().length < 2 || username.trim().length > 20) {
+    return 'Username must be 2-20 characters';
+  }
+  if (!USERNAME_REGEX.test(username.trim())) {
+    return 'Username can only contain letters, numbers, and underscores';
+  }
+  if (RESERVED_NAMES.includes(username.trim().toLowerCase())) {
+    return 'That username is reserved';
+  }
+  return null;
+}
+
 const generateToken = (user) => {
   return jwt.sign(
     {
@@ -36,12 +53,13 @@ router.post('/register', authLimiter, async (req, res) => {
       return res.status(400).json({ error: 'All fields are required' });
     }
 
-    if (!email.toLowerCase().endsWith('@gmail.com')) {
-      return res.status(400).json({ error: 'Only @gmail.com addresses are allowed' });
+    const usernameError = validateUsername(username);
+    if (usernameError) {
+      return res.status(400).json({ error: usernameError });
     }
 
-    if (username.length < 2 || username.length > 20) {
-      return res.status(400).json({ error: 'Username must be 2-20 characters' });
+    if (!email.toLowerCase().endsWith('@gmail.com')) {
+      return res.status(400).json({ error: 'Only @gmail.com addresses are allowed' });
     }
 
     const passwordRegex = /^(?=.*[0-9])(?=.*[!@#$%^&*])(?=.{8,})/;
@@ -131,15 +149,27 @@ router.post('/login', authLimiter, async (req, res) => {
  * POST /api/auth/guest
  * Stateless — no database write. Guest identity lives only in the JWT.
  */
-router.post('/guest', authLimiter, (req, res) => {
+router.post('/guest', authLimiter, async (req, res) => {
   try {
     const { username } = req.body;
 
-    if (!username || username.trim().length < 2 || username.trim().length > 20) {
-      return res.status(400).json({ error: 'Username must be 2-20 characters' });
+    const usernameError = validateUsername(username);
+    if (usernameError) {
+      return res.status(400).json({ error: usernameError });
     }
 
     const cleanUsername = username.trim();
+
+    // ponytail: one DB query to block guests from impersonating registered users
+    const escaped = escapeRegex(cleanUsername);
+    const existingUser = await User.findOne({
+      username: { $regex: new RegExp(`^${escaped}$`, 'i') },
+      isGuest: false,
+    });
+    if (existingUser) {
+      return res.status(409).json({ error: 'That username belongs to a registered account' });
+    }
+
     const guestId = `guest_${nanoid(12)}`;
     const avatarColor = randomAvatarColor();
 

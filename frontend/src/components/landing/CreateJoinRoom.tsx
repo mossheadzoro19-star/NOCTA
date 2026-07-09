@@ -52,8 +52,13 @@ export default function CreateJoinRoom() {
   };
 
   const handleGuestAuth = async () => {
-    if (!formData.username.trim() || formData.username.trim().length < 2) {
+    const name = formData.username.trim();
+    if (!name || name.length < 2) {
       setAuthError("Username must be at least 2 characters");
+      return;
+    }
+    if (!/^[a-zA-Z0-9_]+$/.test(name)) {
+      setAuthError("Letters, numbers, and underscores only");
       return;
     }
     setAuthLoading(true);
@@ -61,7 +66,7 @@ export default function CreateJoinRoom() {
     try {
       const data = await apiRequest("/api/auth/guest", {
         method: "POST",
-        body: JSON.stringify({ username: formData.username.trim() }),
+        body: JSON.stringify({ username: name }),
       });
       handleAuthSuccess(data);
     } catch (err: any) {
@@ -107,6 +112,11 @@ export default function CreateJoinRoom() {
   const handleRegister = async () => {
     if (!formData.username.trim() || !formData.email.trim() || !formData.password) {
       setAuthError("Please fill all fields");
+      return;
+    }
+
+    if (!/^[a-zA-Z0-9_]+$/.test(formData.username.trim())) {
+      setAuthError("Username: letters, numbers, and underscores only");
       return;
     }
 

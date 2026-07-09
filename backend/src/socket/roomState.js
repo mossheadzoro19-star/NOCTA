@@ -79,27 +79,17 @@ class RoomStateManager {
     return room.kicked.has(userId);
   }
 
-  // --- Name Conflict Resolution ---
+  // --- Name Conflict Check ---
 
   /**
-   * Resolve username conflicts within a room.
-   * If "Alex" already exists, returns "Alex (2)". If "Alex (2)" exists, returns "Alex (3)", etc.
+   * Check if a username already exists in a room.
+   * ponytail: strict reject > silent rename — users should pick a unique name
    */
-  resolveUsername(roomCode, username) {
+  hasUsername(roomCode, username) {
     const room = this.activeRooms.get(roomCode);
-    if (!room) return username;
-
+    if (!room) return false;
     const existing = Array.from(room.participants.values()).map((p) => p.username.toLowerCase());
-
-    if (!existing.includes(username.toLowerCase())) {
-      return username;
-    }
-
-    let suffix = 2;
-    while (existing.includes(`${username} (${suffix})`.toLowerCase())) {
-      suffix++;
-    }
-    return `${username} (${suffix})`;
+    return existing.includes(username.toLowerCase());
   }
 
   // --- Participants ---
