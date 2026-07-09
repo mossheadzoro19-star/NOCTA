@@ -53,8 +53,8 @@ export default function CreateJoinRoom() {
 
   const handleGuestAuth = async () => {
     const name = formData.username.trim();
-    if (!name || name.length < 2) {
-      setAuthError("Username must be at least 2 characters");
+    if (!name || name.length < 3) {
+      setAuthError("Username must be at least 3 characters");
       return;
     }
     if (!/^[a-zA-Z0-9_]+$/.test(name)) {

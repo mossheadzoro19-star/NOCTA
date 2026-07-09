@@ -35,7 +35,6 @@ export default function VideoPlayer() {
   const ignoreStateChange = useRef(false);
   const heartbeatInterval = useRef<NodeJS.Timeout | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const rtcVideoRef = useRef<HTMLVideoElement>(null);
 
   const [urlInput, setUrlInput] = useState("");
   const [apiReady, setApiReady] = useState(false);
@@ -263,12 +262,12 @@ export default function VideoPlayer() {
     updateVideoUrl("local://" + file.name);
   };
 
-  useEffect(() => {
-    if (rtcVideoRef.current) {
-      if (remoteStream) rtcVideoRef.current.srcObject = remoteStream;
-      else if (isSharing && localStream) rtcVideoRef.current.srcObject = localStream;
+  const onRTCVideoRef = (node: HTMLVideoElement | null) => {
+    if (node) {
+      if (remoteStream) node.srcObject = remoteStream;
+      else if (isSharing && localStream) node.srcObject = localStream;
     }
-  }, [remoteStream, localStream, isSharing]);
+  };
 
   const hasVideo = source.type !== "unknown" || p2p.status !== "idle" || isSharing || !!remoteStream;
   const videoUrl = p2p.magnetURI ? undefined : (playback.videoUrl.startsWith("/") ? `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001"}${playback.videoUrl}` : playback.videoUrl);
@@ -302,7 +301,7 @@ export default function VideoPlayer() {
           {/* WebRTC Screen Share */}
           {(isSharing || remoteStream) && (
             <video
-              ref={rtcVideoRef}
+              ref={onRTCVideoRef}
               autoPlay
               playsInline
               muted={isSharing}
@@ -429,6 +428,12 @@ export default function VideoPlayer() {
             />
             <Button size="sm" onClick={handleSetVideo} disabled={detectVideoSource(urlInput).type === "unknown"}>
               Change
+            </Button>
+            <Button size="sm" variant="danger" onClick={() => {
+              updateVideoUrl("");
+              useRoomStore.getState().cleanupP2P();
+            }}>
+              Clear Video
             </Button>
           </div>
         </div>
