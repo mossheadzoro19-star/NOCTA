@@ -21,7 +21,8 @@ export function useSocket() {
   const typingTimeouts = useRef<Map<string, NodeJS.Timeout>>(new Map());
 
   useEffect(() => {
-    if (!socket) return;
+    if (!socket || (socket as any)._hasNoctaListeners) return;
+    (socket as any)._hasNoctaListeners = true;
 
     // Room events
     socket.on("room:joined", (data) => {
@@ -159,23 +160,8 @@ export function useSocket() {
       else if (isMicOn !== undefined) addToast(`${username} ${isMicOn ? 'enabled' : 'disabled'} their mic`, "info");
     });
 
-    return () => {
-      socket.off("room:joined");
-      socket.off("room:user-joined");
-      socket.off("room:user-left");
-      socket.off("room:video-changed");
-      socket.off("room:error");
-      socket.off("chat:message");
-      socket.off("chat:typing");
-      socket.off("reconnect:state");
-      socket.off("room:host-changed");
-      socket.off("room:kicked");
-      socket.off("room:nudge");
-      socket.off("room:raise-hand");
-      socket.off("webrtc:peer-disconnected");
-      socket.off("webrtc:media-state");
-      typingTimeouts.current.forEach((t) => clearTimeout(t));
-    };
+    // No cleanup returned: these are global listeners tied to the socket instance.
+    // They use stable Zustand actions and don't capture stale React state.
   }, [socket, setRoom, setParticipants, setPlayback, addMessage, addToast, setTypingUsers]);
 
   const joinRoom = useCallback(
