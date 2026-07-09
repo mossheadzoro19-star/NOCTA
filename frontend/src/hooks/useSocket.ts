@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { useSocketContext } from "@/context/SocketProvider";
 import { useRoomStore } from "@/stores/roomStore";
 
@@ -9,6 +10,7 @@ import { useRoomStore } from "@/stores/roomStore";
  * Handles: join, leave, chat, typing, reactions, participant updates.
  */
 export function useSocket() {
+  const router = useRouter();
   const { socket, isConnected } = useSocketContext();
   const addMessage = useRoomStore((s) => s.addMessage);
   const setParticipants = useRoomStore((s) => s.setParticipants);
@@ -65,6 +67,13 @@ export function useSocket() {
 
     socket.on("room:error", ({ message }) => {
       addToast(message, "error");
+      if (
+        message === "Room not found" ||
+        message === "Room is full" ||
+        message === "You have been removed from this room"
+      ) {
+        router.push("/");
+      }
     });
 
     // Chat events

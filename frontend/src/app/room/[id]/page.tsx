@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useSocket } from "@/hooks/useSocket";
@@ -34,6 +34,7 @@ export default function RoomPage() {
   const { showHelp, setShowHelp } = useKeyboardShortcuts();
 
   const [joining, setJoining] = useState(true);
+  const joinAttemptedRef = useRef<string | null>(null);
 
   // Recover session on mount
   useEffect(() => {
@@ -47,12 +48,19 @@ export default function RoomPage() {
       return;
     }
     if (!isConnected) return;
-    if (roomCode === roomId.toUpperCase()) {
+    
+    const targetRoom = roomId.toUpperCase();
+    if (roomCode === targetRoom) {
       setJoining(false);
       return;
     }
 
+    if (joinAttemptedRef.current === targetRoom) {
+      return;
+    }
+
     const initRoom = async () => {
+      joinAttemptedRef.current = targetRoom;
       try {
         const msgData = await apiRequest(`/api/rooms/${roomId}/messages`);
         if (msgData.messages) setMessages(msgData.messages);
