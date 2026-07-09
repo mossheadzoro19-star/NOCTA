@@ -2,13 +2,10 @@ import { ICE_SERVERS } from "../config/media";
 import { ENABLE_LOCAL_MEDIA } from "../config/media";
 
 // WebTorrent is imported lazily to avoid top-level os.tmpdir() crash in Next.js
-type WebTorrentType = typeof import("webtorrent").default;
-type WTInstance = InstanceType<WebTorrentType>;
-type WTTorrent = WTInstance extends { torrents: (infer T)[] } ? T : any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let WebTorrentCtor: any = null;
 
-let WebTorrentCtor: WebTorrentType | null = null;
-
-async function loadWebTorrent(): Promise<WebTorrentType> {
+async function loadWebTorrent(): Promise<any> {
   if (!WebTorrentCtor) {
     const mod = await import("webtorrent");
     WebTorrentCtor = mod.default;
