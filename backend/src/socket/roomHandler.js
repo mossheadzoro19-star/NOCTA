@@ -170,6 +170,29 @@ module.exports = (io, socket) => {
   });
 
   /**
+   * room:nudge — Play a sound and shake screen for everyone
+   */
+  socket.on('room:nudge', () => {
+    const roomCode = socket.roomCode;
+    if (roomCode) {
+      io.to(roomCode).emit('room:nudge', { username: socket.user.username });
+    }
+  });
+
+  /**
+   * room:raise-hand — Toggle hand raise status
+   */
+  socket.on('room:raise-hand', (payload) => {
+    const roomCode = socket.roomCode;
+    if (roomCode) {
+      io.to(roomCode).emit('room:raise-hand', { 
+        userId: socket.user.userId, 
+        isRaised: Boolean(payload?.isRaised) 
+      });
+    }
+  });
+
+  /**
    * Handle disconnect
    */
   socket.on('disconnecting', () => {

@@ -17,8 +17,8 @@ const USERNAME_REGEX = /^[a-zA-Z0-9_]+$/;
 const RESERVED_NAMES = ['admin', 'system', 'nocta', 'host', 'mod', 'moderator', 'bot'];
 
 function validateUsername(username) {
-  if (!username || username.trim().length < 3 || username.trim().length > 20) {
-    return 'Username must be 3-20 characters';
+  if (!username || username.trim().length < 6 || username.trim().length > 20) {
+    return 'Username must be 6-20 characters';
   }
   if (!USERNAME_REGEX.test(username.trim())) {
     return 'Username can only contain letters, numbers, and underscores';

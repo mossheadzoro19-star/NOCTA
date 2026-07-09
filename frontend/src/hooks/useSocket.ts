@@ -76,6 +76,27 @@ export function useSocket() {
       }
     });
 
+    socket.on("room:nudge", ({ username }) => {
+      addToast(`${username} nudged the room!`, "warning");
+      // Add a CSS class to body for shaking effect
+      document.body.classList.add("animate-nudge");
+      // Play a small beep (base64 encoded short beep)
+      const audio = new Audio("data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YU"); // Fake small header, actually we can just use HTML5 audio or rely on the shake
+      try { audio.play(); } catch(e) {}
+      
+      setTimeout(() => {
+        document.body.classList.remove("animate-nudge");
+      }, 500);
+    });
+
+    socket.on("room:raise-hand", ({ userId, isRaised }) => {
+      const store = useRoomStore.getState();
+      const updated = store.participants.map(p => 
+        p.userId === userId ? { ...p, isRaised } : p
+      );
+      setParticipants(updated);
+    });
+
     // Chat events
     socket.on("chat:message", (msg) => {
       // Don't add if we just sent it (optimistic UI handles this)
@@ -149,6 +170,8 @@ export function useSocket() {
       socket.off("reconnect:state");
       socket.off("room:host-changed");
       socket.off("room:kicked");
+      socket.off("room:nudge");
+      socket.off("room:raise-hand");
       socket.off("webrtc:peer-disconnected");
       socket.off("webrtc:media-state");
       typingTimeouts.current.forEach((t) => clearTimeout(t));
@@ -219,6 +242,14 @@ export function useSocket() {
     [socket]
   );
 
+  const sendNudge = useCallback(() => {
+    socket?.emit("room:nudge");
+  }, [socket]);
+
+  const sendRaiseHand = useCallback((isRaised: boolean) => {
+    socket?.emit("room:raise-hand", { isRaised });
+  }, [socket]);
+
   return {
     socket,
     isConnected,
@@ -228,5 +259,7 @@ export function useSocket() {
     sendTyping,
     sendReaction,
     updateVideoUrl,
+    sendNudge,
+    sendRaiseHand,
   };
 }

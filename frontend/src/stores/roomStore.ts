@@ -4,7 +4,7 @@ import { create, StateCreator } from "zustand";
 
 // --- Types ---
 export interface User { id: string; username: string; avatarColor: string; }
-export interface Participant { socketId: string; userId: string; username: string; avatarColor: string; isHost: boolean; joinedAt: number; }
+export interface Participant { socketId: string; userId: string; username: string; avatarColor: string; isHost: boolean; joinedAt: number; isRaised?: boolean; }
 export interface PlaybackState { isPlaying: boolean; currentTime: number; lastUpdated: number; playbackRate: number; videoUrl: string; }
 export interface ChatMessage { id: string; userId: string; username: string; avatarColor: string; content: string; type: "message" | "reaction" | "system"; createdAt: string; }
 export interface Toast { id: string; message: string; type: "info" | "success" | "error" | "warning"; }

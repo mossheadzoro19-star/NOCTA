@@ -23,6 +23,13 @@ export default function RoomControls() {
 
   const [showReactions, setShowReactions] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isHandRaised, setIsHandRaised] = useState(false);
+  
+  const handleRaiseHand = () => {
+    const nextState = !isHandRaised;
+    setIsHandRaised(nextState);
+    useSocket().sendRaiseHand(nextState);
+  };
 
   const copyRoomCode = async () => {
     if (!roomCode) return;
@@ -142,6 +149,40 @@ export default function RoomControls() {
             stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
             <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
             <path d="M8 21h8M12 17v4" />
+          </svg>
+        </button>
+
+        {/* Nudge */}
+        <button
+          onClick={() => useSocket().sendNudge()}
+          className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center
+            text-nocta-text-muted hover:text-[#D4A88C] hover:bg-[#D4A88C]/10
+            transition-all duration-300 cursor-pointer hidden sm:flex"
+          title="Nudge everyone"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+            <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
+            <path d="M13.73 21a2 2 0 01-3.46 0" />
+          </svg>
+        </button>
+
+        {/* Raise Hand */}
+        <button
+          onClick={handleRaiseHand}
+          className={`w-10 h-10 sm:w-11 sm:h-11 rounded-xl flex items-center justify-center
+            transition-all duration-300 cursor-pointer hidden sm:flex
+            ${isHandRaised 
+              ? "bg-[#D4A88C]/20 text-[#D4A88C]" 
+              : "text-nocta-text-muted hover:text-[#D4A88C] hover:bg-[#D4A88C]/10"}`}
+          title="Raise hand"
+        >
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" strokeWidth="1.5" strokeLinecap="round">
+            <path d="M18 11V6a2 2 0 00-4 0v4" />
+            <path d="M14 10V5a2 2 0 00-4 0v5" />
+            <path d="M10 10.5V4a2 2 0 00-4 0v7" />
+            <path d="M6 14v-2a2 2 0 00-4 0v5l3 5h8c2.5 0 4-2 4-5v-6a2 2 0 00-4 0" />
           </svg>
         </button>
 

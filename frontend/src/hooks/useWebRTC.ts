@@ -131,6 +131,7 @@ export function useWebRTC() {
 
   const startScreenShare = async () => {
     try {
+      useRoomStore.getState().addToast('Tip: For apps like VLC, share "Entire Screen" to avoid black screens', "info");
       const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
       setLocalStream(stream);
       setIsSharing(true);

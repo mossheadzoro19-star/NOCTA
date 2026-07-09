@@ -24,6 +24,13 @@ export default function ParticipantList() {
             isOnline={true}
           />
 
+          {p.isRaised && (
+            <div className="absolute -top-2 -right-1 bg-[#D4A88C] text-black text-[10px] w-4 h-4 
+              rounded-full flex items-center justify-center shadow-md z-20 animate-bounce">
+              ✋
+            </div>
+          )}
+
           {/* Tooltip */}
           <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2
             opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-10">
