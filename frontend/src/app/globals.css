@@ -2,25 +2,25 @@
 @import "tailwindcss";
 
 /* ═══════════════════════════════════════
-   NOCTA — Low Cortisol Design System
-   Calming · Warm · Intimate
+   NOCTA — Premium High-Contrast Design System
+   Bold · Punchy · Cyber-Aesthetic
    ═══════════════════════════════════════ */
 
 @theme inline {
-  --color-nocta-bg: #0A0A0C;
-  --color-nocta-bg-secondary: #101014;
-  --color-nocta-surface: rgba(255, 255, 255, 0.025);
-  --color-nocta-surface-hover: rgba(255, 255, 255, 0.05);
-  --color-nocta-border: rgba(255, 255, 255, 0.05);
-  --color-nocta-border-hover: rgba(255, 255, 255, 0.09);
-  --color-nocta-text: #E8E4DF;
-  --color-nocta-text-secondary: #9A958F;
-  --color-nocta-text-muted: #5A564F;
-  --color-nocta-accent: #A89EC8;
-  --color-nocta-accent-hover: #B8AED6;
-  --color-nocta-accent-dim: rgba(168, 158, 200, 0.1);
-  --color-nocta-success: #89B0AE;
-  --color-nocta-danger: #C88B8B;
+  --color-nocta-bg: #050505;
+  --color-nocta-bg-secondary: #0A0A0A;
+  --color-nocta-surface: rgba(255, 255, 255, 0.04);
+  --color-nocta-surface-hover: rgba(255, 255, 255, 0.08);
+  --color-nocta-border: rgba(255, 255, 255, 0.1);
+  --color-nocta-border-hover: rgba(255, 255, 255, 0.2);
+  --color-nocta-text: #FFFFFF;
+  --color-nocta-text-secondary: #A1A1AA;
+  --color-nocta-text-muted: #71717A;
+  --color-nocta-accent: #FF3366;
+  --color-nocta-accent-hover: #FF6688;
+  --color-nocta-accent-dim: rgba(255, 51, 102, 0.15);
+  --color-nocta-success: #00E5FF;
+  --color-nocta-danger: #FF3333;
 
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
 }
@@ -29,8 +29,8 @@
 html { scroll-behavior: smooth; }
 
 body {
-  background: #0A0A0C;
-  color: #E8E4DF;
+  background: #050505;
+  color: #FFFFFF;
   font-family: 'Inter', system-ui, -apple-system, sans-serif;
   font-size: 16px; /* Increased from default */
   -webkit-font-smoothing: antialiased;
@@ -44,13 +44,13 @@ body {
 ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 2px; }
 
 ::selection {
-  background: rgba(168, 158, 200, 0.15);
-  color: #E8E4DF;
+  background: rgba(255, 51, 102, 0.3);
+  color: #FFFFFF;
 }
 
-/* Gradient text — warm lavender-to-sage */
+/* Gradient text — high impact neon */
 .text-gradient {
-  background: linear-gradient(135deg, #A89EC8 0%, #B8C9E1 40%, #89B0AE 100%);
+  background: linear-gradient(135deg, #FF3366 0%, #00E5FF 50%, #FF9900 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -66,8 +66,8 @@ body {
   height: 500px;
   background: radial-gradient(
     ellipse at center,
-    rgba(168, 158, 200, 0.06) 0%,
-    rgba(137, 176, 174, 0.03) 35%,
+    rgba(255, 51, 102, 0.08) 0%,
+    rgba(0, 229, 255, 0.04) 35%,
     transparent 55%
   );
   pointer-events: none;
@@ -83,7 +83,7 @@ body {
   height: 200px;
   background: radial-gradient(
     ellipse at center top,
-    rgba(168, 158, 200, 0.04) 0%,
+    rgba(255, 51, 102, 0.06) 0%,
     transparent 50%
   );
   pointer-events: none;
