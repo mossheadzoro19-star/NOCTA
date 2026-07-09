@@ -18,7 +18,7 @@ export const getSocket = (token: string): Socket => {
 
   currentToken = token;
 
-  socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:3001", {
+  socket = io(process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001", {
     auth: { token },
     autoConnect: false, // We'll connect manually after attaching listeners
     reconnection: true,
